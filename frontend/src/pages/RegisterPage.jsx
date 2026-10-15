@@ -4,9 +4,10 @@ import { Scale, User, Mail, Lock, Phone, Briefcase, UserPlus, AlertCircle, Check
 import { useAuth } from '../context/AuthContext'
 
 const ROLES = [
-  { value: 'claimant',   label: 'Claimant',   desc: 'I am filing a dispute' },
+  { value: 'claimant',   label: 'Claimant',    desc: 'I am filing a dispute' },
   { value: 'respondent', label: 'Respondent',  desc: 'I have been invited to respond' },
-  { value: 'mediator',   label: 'Mediator',    desc: 'I am a licensed mediator' },
+  { value: 'mediator',   label: 'Mediator',    desc: 'I am a dispute arbitrator' },
+  { value: 'admin',      label: 'Admin',       desc: 'Full platform administration' },
 ]
 
 export default function RegisterPage() {
