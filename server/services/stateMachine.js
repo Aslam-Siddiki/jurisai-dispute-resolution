@@ -1,16 +1,17 @@
 // Formal Case Lifecycle State Machine
 const VALID_TRANSITIONS = {
-  draft: ['invited', 'declined'],
-  invited: ['accepted', 'declined', 'expired'],
-  accepted: ['submissions_open'],
-  declined: ['draft'], // Can be reopened/edited
-  expired: ['invited'], // Can be reinvited
-  submissions_open: ['submissions_closed'],
-  submissions_closed: ['ai_evaluation', 'submissions_open'],
-  ai_evaluation: ['decision_issued', 'submissions_closed'],
-  decision_issued: ['settled_accepted', 'appealed_mediator'],
-  settled_accepted: [], // Final terminal state
-  appealed_mediator: ['decision_issued'] // Can issue updated decision after human review
+  draft: ['invited', 'declined', 'solved'],
+  invited: ['accepted', 'declined', 'expired', 'solved'],
+  accepted: ['submissions_open', 'solved'],
+  declined: ['draft', 'solved'], // Can be reopened/edited
+  expired: ['invited', 'solved'], // Can be reinvited
+  submissions_open: ['submissions_closed', 'solved'],
+  submissions_closed: ['ai_evaluation', 'submissions_open', 'solved'],
+  ai_evaluation: ['decision_issued', 'submissions_closed', 'solved'],
+  decision_issued: ['settled_accepted', 'appealed_mediator', 'solved'],
+  settled_accepted: ['solved'], // Can mark solved
+  appealed_mediator: ['decision_issued', 'solved'], // Can mark solved after mediation
+  solved: ['draft'] // Can reopen if needed
 };
 
 const STATUS_LABELS = {

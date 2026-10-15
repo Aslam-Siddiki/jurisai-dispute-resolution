@@ -232,10 +232,28 @@ export default function AdminDashboardPage() {
                         {c.claimantName} vs. {c.respondentName} &bull; {c.disputeType}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                      <Link to={`/disputes/${c._id}`} className="btn btn-ghost btn-sm">
+                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, alignItems: 'center' }}>
+                      <Link to={`/disputes/${c._id}`} className="btn btn-ghost btn-sm" title="Inspect full case details and evidence">
                         <Eye size={14} /> View <ChevronRight size={13} />
                       </Link>
+                      {c.status !== 'solved' && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={async () => {
+                            if (!window.confirm(`Mark "${c.title}" as resolved/solved?`)) return
+                            try {
+                              await axios.patch(`${API}/cases/${c._id}/solve`)
+                              setCases(prev => prev.map(item => item._id === c._id ? { ...item, status: 'solved' } : item))
+                            } catch (err) {
+                              alert('Failed to mark as solved: ' + (err.response?.data?.message || err.message))
+                            }
+                          }}
+                          style={{ color: '#4ade80' }}
+                          title="Mark case as solved"
+                        >
+                          <CheckCircle size={14} /> Mark Solved
+                        </button>
+                      )}
                       <button
                         id={`delete-case-${c._id}`}
                         className="btn btn-danger btn-sm"

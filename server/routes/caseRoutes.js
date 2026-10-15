@@ -431,6 +431,69 @@ router.post('/register', (req, res, next) => {
   router.handle(req, res, next);
 });
 
+// PATCH /api/cases/:id/solve - Mark case as resolved/solved (Admin or Claimant)
+router.patch('/:id/solve', requireAuth, async (req, res) => {
+  try {
+    const caseDoc = await Case.findById(req.params.id);
+    if (!caseDoc) {
+      return res.status(404).json({ message: 'Case not found.' });
+    }
+
+    // Check permissions: Admin or Claimant
+    const isOwner = caseDoc.claimant && caseDoc.claimant.toString() === req.user._id.toString();
+    const isOwnerEmail = caseDoc.claimantEmail && caseDoc.claimantEmail.toLowerCase() === req.user.email.toLowerCase();
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isAdmin && !isOwner && !isOwnerEmail) {
+      return res.status(403).json({ message: 'Unauthorized. Only an Administrator or the Claimant can mark this case as solved.' });
+    }
+
+    const prevStatus = caseDoc.status;
+    caseDoc.status = 'solved';
+    caseDoc.statusHistory.push({
+      fromStatus: prevStatus,
+      toStatus: 'solved',
+      changedBy: req.user._id,
+      timestamp: new Date(),
+      reason: `Case marked as solved by ${isAdmin ? 'Administrator' : 'Claimant'}`
+    });
+
+    await caseDoc.save();
+    res.json({ message: 'Case marked as solved successfully.', case: caseDoc });
+  } catch (err) {
+    console.error('Solve case error:', err);
+    res.status(500).json({ message: 'Failed to mark case as solved.' });
+  }
+});
+
+// DELETE /api/cases/:id - Permanently delete a case (Admin only)
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin) {
+      return res.status(403).json({ message: 'Administrator privileges are required to delete cases.' });
+    }
+
+    const caseDoc = await Case.findById(req.params.id);
+    if (!caseDoc) {
+      return res.status(404).json({ message: 'Case not found.' });
+    }
+
+    // Clean up related sub-documents
+    await Promise.all([
+      Submission.deleteMany({ caseId: caseDoc._id }),
+      Invitation.deleteMany({ caseId: caseDoc._id }),
+      Decision.deleteMany({ caseId: caseDoc._id }),
+      caseDoc.deleteOne()
+    ]);
+
+    res.json({ message: `Case "${caseDoc.title}" and all associated evidence were permanently deleted.` });
+  } catch (err) {
+    console.error('Delete case error:', err);
+    res.status(500).json({ message: 'Failed to delete case.' });
+  }
+});
+
 router.post('/:id/analyze', (req, res, next) => {
   req.url = `/${req.params.id}/evaluate`;
   router.handle(req, res, next);
