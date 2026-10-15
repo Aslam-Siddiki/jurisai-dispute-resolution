@@ -12,6 +12,16 @@ function createToken(user) {
   );
 }
 
+// GET /api/auth/admin-status — Check if an admin has already been registered
+router.get('/admin-status', async (req, res) => {
+  try {
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    res.json({ hasAdmin: adminCount > 0 });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to check admin status.' });
+  }
+});
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -19,6 +29,13 @@ router.post('/register', async (req, res) => {
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
+    }
+
+    if (role === 'admin') {
+      const adminExists = await User.exists({ role: 'admin' });
+      if (adminExists) {
+        return res.status(403).json({ message: 'An administrator account already exists. Only one admin is permitted.' });
+      }
     }
 
     const existing = await User.findOne({ email: email.toLowerCase() });

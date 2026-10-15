@@ -1,23 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { Scale, User, Mail, Lock, Phone, Briefcase, UserPlus, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { NODE_API_BASE as API } from '../config/api'
 
-const ROLES = [
+const BASE_ROLES = [
   { value: 'claimant',   label: 'Claimant',    desc: 'I am filing a dispute' },
   { value: 'respondent', label: 'Respondent',  desc: 'I have been invited to respond' },
   { value: 'mediator',   label: 'Mediator',    desc: 'I am a dispute arbitrator' },
-  { value: 'admin',      label: 'Admin',       desc: 'Full platform administration' },
 ]
 
 export default function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
 
+  const [hasAdmin, setHasAdmin] = useState(true) // default to true until checked
   const [form, setForm] = useState({
     name: '', email: '', password: '', confirmPassword: '',
     phone: '', organization: '', role: 'claimant'
   })
+
+  useEffect(() => {
+    axios.get(`${API}/auth/admin-status`)
+      .then(res => setHasAdmin(res.data?.hasAdmin))
+      .catch(() => setHasAdmin(true))
+  }, [])
+
+  const availableRoles = hasAdmin 
+    ? BASE_ROLES 
+    : [...BASE_ROLES, { value: 'admin', label: 'Admin', desc: 'Full platform administration' }]
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError]     = useState('')
@@ -87,8 +99,8 @@ export default function RegisterPage() {
               {/* Role Selection */}
               <div className="form-group">
                 <label className="form-label">I am registering as</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.75rem' }}>
-                  {ROLES.map(r => (
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${availableRoles.length}, 1fr)`, gap: '0.75rem' }}>
+                  {availableRoles.map(r => (
                     <label
                       key={r.value}
                       htmlFor={`role-${r.value}`}
