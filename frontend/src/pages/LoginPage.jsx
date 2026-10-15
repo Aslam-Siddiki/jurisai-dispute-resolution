@@ -149,10 +149,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Admin hint */}
-        <p style={{ textAlign: 'center', marginTop: '1.25rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-          Admin accounts are provisioned by your system administrator.
-        </p>
       </div>
     </div>
   )
