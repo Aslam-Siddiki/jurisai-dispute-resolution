@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # MongoDB Service
+  mongo:
+    image: mongo:7.0
+    container_name: jurisai-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  # Node.js Core Backend
+  core-api:
+    image: node:22-alpine
+    container_name: jurisai-core-api
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./server:/app
+      - ./uploads:/uploads
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongo:27017/jurisai
+      - JWT_SECRET=jurisai_jwt_secret_production_key_2026
+      - PYTHON_AI_URL=http://ai-engine:8000
+    depends_on:
+      - mongo
+    command: sh -c "npm install && npm start"
+
+  # Python AI NLP Microservice
+  ai-engine:
+    image: python:3.11-slim
+    container_name: jurisai-ai-engine
+    restart: always
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  mongo-data:
