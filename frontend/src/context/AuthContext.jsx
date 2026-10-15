@@ -50,8 +50,19 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    const { data } = await axios.put(`${API}/auth/change-password`, { currentPassword, newPassword })
+    return data
+  }, [])
+
+  const deleteAccount = useCallback(async (password) => {
+    const { data } = await axios.delete(`${API}/auth/delete-account`, { data: { password } })
+    logout()
+    return data
+  }, [logout])
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, changePassword, deleteAccount, isAdmin: user?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   )

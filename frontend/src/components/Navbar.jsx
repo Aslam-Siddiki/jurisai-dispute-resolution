@@ -67,15 +67,24 @@ export default function Navbar() {
                 }
               </Link>
 
-              {/* User pill */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '0.55rem',
-                padding: '0.3rem 0.75rem 0.3rem 0.4rem',
-                borderRadius: '999px',
-                border: '1px solid var(--border)',
-                background: 'rgba(255,255,255,0.04)',
-                fontSize: '0.82rem'
-              }}>
+              {/* User pill / Settings link */}
+              <Link
+                to="/settings"
+                title="Profile & Settings"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.55rem',
+                  padding: '0.3rem 0.75rem 0.3rem 0.4rem',
+                  borderRadius: '999px',
+                  border: '1px solid var(--border)',
+                  background: 'rgba(255,255,255,0.04)',
+                  fontSize: '0.82rem',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s, border-color 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              >
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%',
                   background: isAdmin ? 'linear-gradient(135deg,#ef4444,#8b5cf6)' : 'var(--gradient-primary)',
@@ -87,7 +96,7 @@ export default function Navbar() {
                 <span style={{ color: 'var(--text-primary)', fontWeight: 600, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {user.name}
                 </span>
-              </div>
+              </Link>
 
               {/* Logout */}
               <button

@@ -13,6 +13,7 @@ import DisputeDetailPage    from './pages/DisputeDetailPage'
 import DisputeListPage      from './pages/DisputeListPage'
 import ReferenceCasesPage   from './pages/ReferenceCasesPage'
 import PartyBInvitePage     from './pages/PartyBInvitePage'
+import ProfileSettingsPage  from './pages/ProfileSettingsPage'
 
 export default function App() {
   return (
@@ -31,6 +32,9 @@ export default function App() {
             {/* Protected — any authenticated user */}
             <Route path="/dashboard" element={
               <ProtectedRoute><UserDashboardPage /></ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute><ProfileSettingsPage /></ProtectedRoute>
             } />
             <Route path="/disputes" element={
               <ProtectedRoute><DisputeListPage /></ProtectedRoute>

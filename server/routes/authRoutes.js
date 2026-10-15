@@ -130,6 +130,63 @@ router.post('/demo-login', async (req, res) => {
   }
 });
 
+// PUT /api/auth/change-password — Update password for authenticated user
+router.put('/change-password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect.' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: 'Password updated successfully.' });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ message: 'Failed to update password.' });
+  }
+});
+
+// DELETE /api/auth/delete-account — Delete authenticated user's own account
+router.delete('/delete-account', requireAuth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required to confirm account deletion.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect password. Account deletion aborted.' });
+    }
+
+    await user.deleteOne();
+    res.json({ message: 'Account deleted successfully.' });
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ message: 'Failed to delete account.' });
+  }
+});
+
 // GET /api/auth/users — Admin: list all users
 router.get('/users', requireAuth, requireRole('admin'), async (req, res) => {
   try {
