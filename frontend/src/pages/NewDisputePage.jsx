@@ -7,7 +7,7 @@ import {
   Scale, Shield, HelpCircle, Eye
 } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000/api'
+import { PYTHON_API_BASE as API_BASE } from '../config/api'
 
 const CATEGORIES = [
   'Tenancy & Security Deposit',

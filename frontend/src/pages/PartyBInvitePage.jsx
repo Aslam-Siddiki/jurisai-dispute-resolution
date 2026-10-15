@@ -7,7 +7,7 @@ import {
   Check, FileCheck, Layers
 } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000/api'
+import { PYTHON_API_BASE as API_BASE } from '../config/api'
 
 export default function PartyBInvitePage() {
   const { token } = useParams()

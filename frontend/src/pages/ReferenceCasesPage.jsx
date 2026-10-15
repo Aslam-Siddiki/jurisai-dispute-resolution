@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { BookOpen, Search, Tag } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000/api'
+import { PYTHON_API_BASE as API_BASE } from '../config/api'
 
 export default function ReferenceCasesPage() {
   const [cases, setCases] = useState([])

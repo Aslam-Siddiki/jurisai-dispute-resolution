@@ -6,7 +6,7 @@ import {
   Sparkles, AlertTriangle, Users, Mail, Copy, Check, ExternalLink
 } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000/api'
+import { PYTHON_API_BASE as API_BASE } from '../config/api'
 
 export default function DisputeListPage() {
   const [disputes, setDisputes] = useState([])

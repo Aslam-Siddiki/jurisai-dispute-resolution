@@ -7,7 +7,7 @@ import {
   Scale, TrendingUp, Eye, ChevronRight
 } from 'lucide-react'
 
-const API = 'http://localhost:5000/api'
+import { NODE_API_BASE as API } from '../config/api'
 
 const STATUS_STYLES = {
   draft:            { cls: 'badge-muted',  label: 'Draft' },
