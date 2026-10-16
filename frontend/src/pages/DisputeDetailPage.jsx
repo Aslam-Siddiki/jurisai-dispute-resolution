@@ -10,6 +10,9 @@ import {
 
 import { PYTHON_API_BASE as API_BASE } from '../config/api'
 
+import { useRealtimeEvents } from '../context/useRealtimeEvents'
+import { Activity, Bell, X } from 'lucide-react'
+
 export default function DisputeDetailPage() {
   const { id } = useParams()
   const [dispute, setDispute] = useState(null)
@@ -25,7 +28,7 @@ export default function DisputeDetailPage() {
   const [inviteSuccessMsg, setInviteSuccessMsg] = useState(null)
 
   // Fetch dispute and analysis details
-  const fetchDetails = async () => {
+  const fetchDetails = async (isBackground = false) => {
     try {
       const dispRes = await axios.get(`${API_BASE}/disputes/${id}`)
       setDispute(dispRes.data)
@@ -42,22 +45,30 @@ export default function DisputeDetailPage() {
       }
     } catch (err) {
       console.error(err)
-      setError(err.response?.data?.detail || 'Failed to load dispute details.')
+      if (!isBackground) {
+        setError(err.response?.data?.detail || 'Failed to load dispute details.')
+      }
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchDetails()
+    fetchDetails(false)
   }, [id])
 
-  // Poll status while analyzing
+  // Real-time synchronization hook
+  const { isConnected, lastNotification, dismissNotification } = useRealtimeEvents((event) => {
+    // Refresh dispute details if this dispute is affected
+    fetchDetails(true)
+  })
+
+  // Poll status while analyzing fallback
   useEffect(() => {
     let interval = null
     if (analyzing) {
       interval = setInterval(() => {
-        fetchDetails()
+        fetchDetails(true)
       }, 3000)
     }
     return () => {
@@ -154,12 +165,43 @@ export default function DisputeDetailPage() {
             <h1 style={{ fontSize: '2rem' }}>{dispute.title}</h1>
             {dispute.category && <span className="badge badge-purple">{dispute.category}</span>}
           </div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            Dispute ID: <code>{dispute.id}</code> &bull; Created {new Date(dispute.created_at).toLocaleString()}
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span>Dispute ID: <code>{dispute.id}</code> &bull; Created {new Date(dispute.created_at).toLocaleString()}</span>
+            <span
+              title={isConnected ? 'Live real-time stream active' : 'Connecting to live events stream...'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.72rem',
+                padding: '0.15rem 0.55rem',
+                borderRadius: '1rem',
+                background: isConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                color: isConnected ? '#34d399' : '#fbbf24',
+                border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`
+              }}
+            >
+              <span style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: isConnected ? '#10b981' : '#f59e0b',
+                boxShadow: isConnected ? '0 0 8px #10b981' : 'none',
+                display: 'inline-block'
+              }} />
+              {isConnected ? 'Real-Time Connected' : 'Syncing...'}
+            </span>
           </div>
         </div>
 
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => fetchDetails(false)}
+            className="btn btn-ghost btn-sm"
+            title="Refresh case details"
+          >
+            <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
+          </button>
           {dispute.status === 'settled' && <span className="badge badge-green" style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}><CheckCircle2 size={16} /> Settlement Accepted</span>}
           {dispute.status === 'complete' && <span className="badge badge-blue" style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}><Sparkles size={16} /> Analysis Complete</span>}
           {dispute.status === 'analyzing' && <span className="badge badge-amber" style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}><RefreshCw size={16} className="spinner" style={{ width: 14, height: 14 }} /> AI Pipeline Running...</span>}
@@ -167,6 +209,40 @@ export default function DisputeDetailPage() {
           {dispute.status === 'pending' && <span className="badge badge-amber" style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}><Clock size={16} /> Awaiting Party B</span>}
         </div>
       </div>
+
+      {/* Live Event Notification Banner */}
+      {lastNotification && (
+        <div className="alert alert-info mb-2 fade-up" style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.1))',
+          borderColor: 'rgba(99,179,237,0.35)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <Bell size={18} style={{ color: 'var(--accent-cyan)' }} />
+            <div>
+              <strong style={{ color: '#fff', fontSize: '0.88rem' }}>Real-Time Case Update: </strong>
+              <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{lastNotification.message}</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                ({lastNotification.timestamp.toLocaleTimeString()})
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={dismissNotification}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              padding: '0.2rem'
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {inviteSuccessMsg && (
         <div className="alert alert-success mb-2 fade-up">

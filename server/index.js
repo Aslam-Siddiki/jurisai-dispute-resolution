@@ -28,11 +28,25 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(uploadsDir));
 
+const { registerClient, broadcast } = require('./services/realtime');
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
 app.use('/api/disputes', caseRoutes); // Compatibility alias
 app.use('/api/invitations', invitationRoutes);
+
+// Realtime Server-Sent Events (SSE) Stream
+app.get('/api/realtime/events', (req, res) => {
+  registerClient(req, res);
+});
+
+// Relay broadcast from microservices (e.g., Python AI engine)
+app.post('/api/realtime/broadcast', (req, res) => {
+  const { event = 'CASE_UPDATED', data = {} } = req.body;
+  broadcast(event, data);
+  res.json({ success: true, event });
+});
 
 // Health check
 app.get('/api/health', (req, res) => {

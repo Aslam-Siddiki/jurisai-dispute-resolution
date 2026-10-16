@@ -7,7 +7,10 @@ import {
   Scale, TrendingUp, Eye, ChevronRight
 } from 'lucide-react'
 
-import { NODE_API_BASE as API } from '../config/api'
+import { NODE_API_BASE as API, PYTHON_API_BASE as PYTHON_API } from '../config/api'
+
+import { useRealtimeEvents } from '../context/useRealtimeEvents'
+import { Activity, Bell, X } from 'lucide-react'
 
 const STATUS_STYLES = {
   draft:            { cls: 'badge-muted',  label: 'Draft' },
@@ -28,20 +31,65 @@ export default function UserDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState('')
   const [marking, setMarking] = useState(null) // case id being marked
+  const [lastEventTime, setLastEventTime] = useState(null)
 
-  useEffect(() => {
-    axios.get(`${API}/cases`)
-      .then(r => {
-        // Filter: only show cases where this user is the claimant
+  const isRespondent = user?.role === 'respondent'
+
+  const fetchCases = async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
+    if (isRespondent) {
+      // Respondents: fetch from Python disputes API and filter by their email
+      try {
+        const r = await axios.get(`${PYTHON_API}/disputes`)
+        const userEmail = user?.email?.toLowerCase()
+        const mine = r.data.filter(d =>
+          d.party_b_email?.toLowerCase() === userEmail
+        )
+        const normalised = mine.map(d => ({
+          _id: d.id,
+          title: d.title,
+          status: d.status,
+          disputeType: d.category || 'Civil Dispute',
+          respondentName: d.party_a_name || 'Claimant',
+          createdAt: d.created_at,
+          _pythonDispute: true
+        }))
+        setCases(normalised)
+        setError('')
+      } catch {
+        if (!isBackground) setError('Failed to load your assigned cases.')
+      } finally {
+        if (!isBackground) setLoading(false)
+      }
+    } else {
+      // Claimants: fetch from Node.js cases API
+      try {
+        const r = await axios.get(`${API}/cases`)
         const mine = r.data.filter(c =>
           c.claimantEmail?.toLowerCase() === user?.email?.toLowerCase() ||
           c.claimant === user?._id || c.claimant?._id === user?._id
         )
         setCases(mine)
-      })
-      .catch(() => setError('Failed to load your cases.'))
-      .finally(() => setLoading(false))
+        setError('')
+      } catch {
+        if (!isBackground) setError('Failed to load your cases.')
+      } finally {
+        if (!isBackground) setLoading(false)
+      }
+    }
+  }
+
+  // Initial load
+  useEffect(() => {
+    fetchCases(false)
   }, [user])
+
+  // Hook into real-time server events (SSE)
+  const { isConnected, lastNotification, dismissNotification } = useRealtimeEvents(() => {
+    // Whenever an event fires, refresh dashboard data seamlessly
+    fetchCases(true)
+    setLastEventTime(new Date())
+  })
 
   const markSolved = async (caseId) => {
     setMarking(caseId)
@@ -80,15 +128,84 @@ export default function UserDashboardPage() {
               <h1 style={{ fontFamily: 'Space Grotesk', fontSize: '1.6rem', fontWeight: 700, color: '#fff' }}>
                 My Dashboard
               </h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                {user?.name} &bull; <span className="badge badge-blue" style={{ fontSize: '0.72rem' }}>{user?.role}</span>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                <span>{user?.name} &bull;</span>
+                <span className="badge badge-blue" style={{ fontSize: '0.72rem' }}>{user?.role}</span>
+                <span
+                  title={isConnected ? 'Live real-time stream active' : 'Connecting to live events stream...'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontSize: '0.72rem',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '1rem',
+                    background: isConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                    color: isConnected ? '#34d399' : '#fbbf24',
+                    border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`
+                  }}
+                >
+                  <span style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: isConnected ? '#10b981' : '#f59e0b',
+                    boxShadow: isConnected ? '0 0 8px #10b981' : 'none',
+                    display: 'inline-block'
+                  }} />
+                  {isConnected ? 'Real-Time Connected' : 'Syncing...'}
+                </span>
               </p>
             </div>
           </div>
-          <Link to="/disputes/new" className="btn btn-primary">
-            <FilePlus size={16} /> File New Dispute
-          </Link>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={() => fetchCases(false)}
+              className="btn btn-ghost btn-sm"
+              title="Manual Refresh"
+            >
+              Refresh
+            </button>
+            <Link to="/disputes/new" className="btn btn-primary">
+              <FilePlus size={16} /> File New Dispute
+            </Link>
+          </div>
         </div>
+
+        {/* Live Event Notification Banner */}
+        {lastNotification && (
+          <div className="alert alert-info fade-up" style={{
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.1))',
+            borderColor: 'rgba(99,179,237,0.35)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <Bell size={18} style={{ color: 'var(--accent-cyan)' }} />
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.88rem' }}>Live Update: </strong>
+                <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{lastNotification.message}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                  ({lastNotification.timestamp.toLocaleTimeString()})
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={dismissNotification}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                padding: '0.2rem'
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid-3" style={{ marginBottom: '2rem' }}>

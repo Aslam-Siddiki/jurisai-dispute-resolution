@@ -25,6 +25,9 @@ const STATUS_STYLES = {
   expired:           { cls: 'badge-muted',   label: 'Expired' },
 }
 
+import { useRealtimeEvents } from '../context/useRealtimeEvents'
+import { Activity, Bell, X } from 'lucide-react'
+
 export default function AdminDashboardPage() {
   const { user } = useAuth()
 
@@ -37,8 +40,8 @@ export default function AdminDashboardPage() {
   const [tab, setTab]       = useState('cases') // 'cases' | 'users'
   const [error, setError]   = useState('')
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     setError('')
     try {
       const [casesRes, usersRes] = await Promise.all([
@@ -48,13 +51,20 @@ export default function AdminDashboardPage() {
       setCases(casesRes.data)
       setUsers(usersRes.data?.users || [])
     } catch (err) {
-      setError('Failed to load admin data: ' + (err.response?.data?.message || err.message))
+      if (!isBackground) {
+        setError('Failed to load admin data: ' + (err.response?.data?.message || err.message))
+      }
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(false) }, [])
+
+  // Hook into real-time server events (SSE) for instant admin updates
+  const { isConnected, lastNotification, dismissNotification } = useRealtimeEvents(() => {
+    load(true)
+  })
 
   const deleteCase = async (id, title) => {
     if (!window.confirm(`Permanently delete "${title}"? This cannot be undone.`)) return
@@ -119,15 +129,75 @@ export default function AdminDashboardPage() {
               <h1 style={{ fontFamily: 'Space Grotesk', fontSize: '1.6rem', fontWeight: 700, color: '#fff' }}>
                 Admin Dashboard
               </h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                {user?.name} &bull; <span className="badge badge-red" style={{ fontSize: '0.72rem' }}>administrator</span>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                <span>{user?.name} &bull;</span>
+                <span className="badge badge-red" style={{ fontSize: '0.72rem' }}>administrator</span>
+                <span
+                  title={isConnected ? 'Live real-time stream active' : 'Connecting to live events stream...'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontSize: '0.72rem',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '1rem',
+                    background: isConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                    color: isConnected ? '#34d399' : '#fbbf24',
+                    border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`
+                  }}
+                >
+                  <span style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: isConnected ? '#10b981' : '#f59e0b',
+                    boxShadow: isConnected ? '0 0 8px #10b981' : 'none',
+                    display: 'inline-block'
+                  }} />
+                  {isConnected ? 'Real-Time Connected' : 'Syncing...'}
+                </span>
               </p>
             </div>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>
+          <button className="btn btn-ghost btn-sm" onClick={() => load(false)} disabled={loading}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
           </button>
         </div>
+
+        {/* Live Event Notification Banner */}
+        {lastNotification && (
+          <div className="alert alert-info fade-up" style={{
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(139,92,246,0.1))',
+            borderColor: 'rgba(239,68,68,0.35)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <Bell size={18} style={{ color: '#f87171' }} />
+              <div>
+                <strong style={{ color: '#fff', fontSize: '0.88rem' }}>Real-Time Platform Event: </strong>
+                <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{lastNotification.message}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                  ({lastNotification.timestamp.toLocaleTimeString()})
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={dismissNotification}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                padding: '0.2rem'
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '1rem', marginBottom: '2rem' }}>

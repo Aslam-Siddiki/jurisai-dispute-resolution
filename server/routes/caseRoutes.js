@@ -10,6 +10,7 @@ const upload = require('../middleware/upload');
 const { transitionCase } = require('../services/stateMachine');
 const { sendInvitationEmail } = require('../services/emailService');
 const { evaluateCaseWithAI } = require('../services/aiBridgeService');
+const { broadcast } = require('../services/realtime');
 
 // GET /api/cases - List all cases
 router.get('/', optionalAuth, async (req, res) => {
@@ -61,6 +62,13 @@ router.post('/', optionalAuth, upload.array('evidenceFiles', 5), async (req, res
     if (!title || !claimantName || !claimantStatement || !respondentName || !respondentEmail) {
       return res.status(400).json({
         message: 'Dispute title, claimant name & statement, and respondent name & email are required.'
+      });
+    }
+
+    // Administrators are neutral platform overseers and cannot file disputes
+    if (req.user && req.user.role === 'admin') {
+      return res.status(403).json({
+        message: 'Administrators are neutral platform overseers and cannot file disputes.'
       });
     }
 
@@ -149,6 +157,12 @@ router.post('/', optionalAuth, upload.array('evidenceFiles', 5), async (req, res
     if (sendEmail === 'true' || sendEmail === true) {
       emailStatus = await sendInvitationEmail(newCase, invitation);
     }
+
+    // 7. Broadcast real-time event to all connected dashboards
+    broadcast('CASE_CREATED', {
+      case: newCase,
+      message: `New dispute registered: "${newCase.title}"`
+    });
 
     res.status(201).json({
       message: 'Case successfully registered and invitation dispatched.',
@@ -258,6 +272,12 @@ router.post('/:id/evaluate', optionalAuth, async (req, res) => {
     // Transition State Machine: ai_evaluation -> decision_issued
     await transitionCase(caseDoc, 'decision_issued', req.user?._id, 'AI Decision synthesized and issued to parties.');
 
+    broadcast('DECISION_ISSUED', {
+      case: caseDoc,
+      decision,
+      message: `AI Decision synthesized for "${caseDoc.title}"`
+    });
+
     res.json({
       message: 'AI evaluation completed successfully.',
       case: caseDoc,
@@ -322,6 +342,12 @@ router.post('/:id/decision/respond', optionalAuth, async (req, res) => {
     }
 
     await decision.save();
+
+    broadcast('CASE_UPDATED', {
+      case: caseDoc,
+      decision,
+      message: `Party ${party} performed '${action}' on case "${caseDoc.title}". Status: ${caseDoc.status}`
+    });
 
     res.json({
       message: `Decision response recorded (${action}).`,
@@ -388,6 +414,12 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
       caseDoc.deleteOne()
     ]);
 
+    broadcast('CASE_DELETED', {
+      caseId: req.params.id,
+      title: caseDoc.title,
+      message: `Case "${caseDoc.title}" was permanently deleted by Administrator.`
+    });
+
     res.json({ message: `Case "${caseDoc.title}" and all related records permanently deleted.` });
   } catch (err) {
     console.error('Delete case error:', err);
@@ -395,27 +427,35 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   }
 });
 
-// PATCH /api/cases/:id/solve — Authenticated user marks their own case as solved
+// PATCH /api/cases/:id/solve — Authenticated user (Claimant or Admin) marks case as solved
 router.patch('/:id/solve', requireAuth, async (req, res) => {
   try {
     const caseDoc = await Case.findById(req.params.id);
     if (!caseDoc) return res.status(404).json({ message: 'Case not found.' });
 
-    // Only the claimant or an admin can mark it solved
     const isOwner = caseDoc.claimantEmail?.toLowerCase() === req.user.email?.toLowerCase() ||
                     caseDoc.claimant?.toString() === req.user._id.toString();
-    if (!isOwner && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Only the case claimant can mark it as solved.' });
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Only the case claimant or an administrator can mark it as solved.' });
     }
 
+    const prevStatus = caseDoc.status;
     caseDoc.status = 'solved';
     caseDoc.statusHistory.push({
-      fromStatus: caseDoc.status,
+      fromStatus: prevStatus,
       toStatus: 'solved',
       changedBy: req.user._id,
-      reason: 'Marked as solved by claimant'
+      timestamp: new Date(),
+      reason: `Case marked as solved by ${isAdmin ? 'Administrator' : 'Claimant'}`
     });
     await caseDoc.save();
+
+    broadcast('CASE_SOLVED', {
+      case: caseDoc,
+      message: `Case "${caseDoc.title}" marked as solved by ${isAdmin ? 'Administrator' : 'Claimant'}.`
+    });
 
     res.json({ message: 'Case marked as solved.', case: caseDoc });
   } catch (err) {
@@ -429,69 +469,6 @@ router.post('/register', (req, res, next) => {
   // Delegate to POST / handler
   req.url = '/';
   router.handle(req, res, next);
-});
-
-// PATCH /api/cases/:id/solve - Mark case as resolved/solved (Admin or Claimant)
-router.patch('/:id/solve', requireAuth, async (req, res) => {
-  try {
-    const caseDoc = await Case.findById(req.params.id);
-    if (!caseDoc) {
-      return res.status(404).json({ message: 'Case not found.' });
-    }
-
-    // Check permissions: Admin or Claimant
-    const isOwner = caseDoc.claimant && caseDoc.claimant.toString() === req.user._id.toString();
-    const isOwnerEmail = caseDoc.claimantEmail && caseDoc.claimantEmail.toLowerCase() === req.user.email.toLowerCase();
-    const isAdmin = req.user.role === 'admin';
-
-    if (!isAdmin && !isOwner && !isOwnerEmail) {
-      return res.status(403).json({ message: 'Unauthorized. Only an Administrator or the Claimant can mark this case as solved.' });
-    }
-
-    const prevStatus = caseDoc.status;
-    caseDoc.status = 'solved';
-    caseDoc.statusHistory.push({
-      fromStatus: prevStatus,
-      toStatus: 'solved',
-      changedBy: req.user._id,
-      timestamp: new Date(),
-      reason: `Case marked as solved by ${isAdmin ? 'Administrator' : 'Claimant'}`
-    });
-
-    await caseDoc.save();
-    res.json({ message: 'Case marked as solved successfully.', case: caseDoc });
-  } catch (err) {
-    console.error('Solve case error:', err);
-    res.status(500).json({ message: 'Failed to mark case as solved.' });
-  }
-});
-
-// DELETE /api/cases/:id - Permanently delete a case (Admin only)
-router.delete('/:id', requireAuth, async (req, res) => {
-  try {
-    const isAdmin = req.user.role === 'admin';
-    if (!isAdmin) {
-      return res.status(403).json({ message: 'Administrator privileges are required to delete cases.' });
-    }
-
-    const caseDoc = await Case.findById(req.params.id);
-    if (!caseDoc) {
-      return res.status(404).json({ message: 'Case not found.' });
-    }
-
-    // Clean up related sub-documents
-    await Promise.all([
-      Submission.deleteMany({ caseId: caseDoc._id }),
-      Invitation.deleteMany({ caseId: caseDoc._id }),
-      Decision.deleteMany({ caseId: caseDoc._id }),
-      caseDoc.deleteOne()
-    ]);
-
-    res.json({ message: `Case "${caseDoc.title}" and all associated evidence were permanently deleted.` });
-  } catch (err) {
-    console.error('Delete case error:', err);
-    res.status(500).json({ message: 'Failed to delete case.' });
-  }
 });
 
 router.post('/:id/analyze', (req, res, next) => {

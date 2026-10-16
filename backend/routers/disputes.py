@@ -21,7 +21,17 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+import requests
+
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+NODE_BACKEND_URL = os.getenv("NODE_BACKEND_URL", "http://localhost:5000")
+
+def relay_broadcast(event: str, data: dict):
+    """Notify Node.js core server to broadcast SSE event to all connected dashboard clients."""
+    try:
+        requests.post(f"{NODE_BACKEND_URL}/api/realtime/broadcast", json={"event": event, "data": data}, timeout=1.0)
+    except Exception:
+        pass
 
 router = APIRouter(prefix="/disputes", tags=["disputes"])
 
@@ -47,8 +57,8 @@ def list_disputes(db: Session = Depends(get_db)):
     disputes = db.query(Dispute).order_by(Dispute.created_at.desc()).all()
     results = []
     for d in disputes:
-        party_a = next((p.name for p in d.parties if p.role == "A"), None)
-        party_b = next((p.name for p in d.parties if p.role == "B"), None)
+        party_a = next((p for p in d.parties if p.role == "A"), None)
+        party_b = next((p for p in d.parties if p.role == "B"), None)
         results.append(DisputeListItem(
             id=d.id,
             title=d.title,
@@ -58,8 +68,10 @@ def list_disputes(db: Session = Depends(get_db)):
             status=d.status,
             created_at=d.created_at,
             updated_at=d.updated_at,
-            party_a_name=party_a,
-            party_b_name=party_b
+            party_a_name=party_a.name if party_a else None,
+            party_a_email=party_a.email if party_a else None,
+            party_b_name=party_b.name if party_b else None,
+            party_b_email=party_b.email if party_b else None,
         ))
     return results
 
@@ -115,6 +127,14 @@ def register_dispute(data: DisputeRegisterRequest, db: Session = Depends(get_db)
             dispute_title=new_dispute.title,
             invite_url=invite_url
         )
+
+    relay_broadcast("CASE_CREATED", {
+        "id": new_dispute.id,
+        "title": new_dispute.title,
+        "party_a_name": data.party_a_name,
+        "party_b_name": data.party_b_name,
+        "message": f"New dispute filed: '{new_dispute.title}'"
+    })
 
     return {
         "message": "Dispute registered successfully and invitation created for Party B",
@@ -247,6 +267,13 @@ def submit_party_b_by_invite(invite_token: str, data: PartyBRespondRequest, db: 
     db.commit()
     db.refresh(party_b)
     db.refresh(dispute)
+
+    relay_broadcast("CASE_UPDATED", {
+        "id": dispute.id,
+        "title": dispute.title,
+        "status": dispute.status,
+        "message": f"Party B ({party_b.name}) submitted response for '{dispute.title}'"
+    })
 
     return {
         "message": "Response submitted successfully. Both parties have submitted their accounts.",
@@ -493,6 +520,13 @@ def trigger_analysis(dispute_id: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(analysis_record)
 
+    relay_broadcast("DECISION_ISSUED", {
+        "id": dispute_id,
+        "title": dispute.title,
+        "status": dispute.status,
+        "message": f"AI evaluation completed for '{dispute.title}'"
+    })
+
     return {"message": "AI analysis completed successfully", "analysis": analysis_record}
 
 @router.get("/{dispute_id}/analysis")
@@ -532,5 +566,12 @@ def respond_to_recommendation(dispute_id: str, req: RespondRequest, db: Session 
     dispute.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(analysis)
+
+    relay_broadcast("CASE_UPDATED", {
+        "id": dispute_id,
+        "title": dispute.title,
+        "status": dispute.status,
+        "message": f"Party {party_role} responded with '{response_val}'. Status: {dispute.status}"
+    })
 
     return {"status": "success", "analysis": analysis, "dispute_status": dispute.status}

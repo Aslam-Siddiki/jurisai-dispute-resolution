@@ -7,6 +7,7 @@ const User = require('../models/User');
 const { optionalAuth } = require('../middleware/auth');
 const { transitionCase } = require('../services/stateMachine');
 const upload = require('../middleware/upload');
+const { broadcast } = require('../services/realtime');
 
 // GET /api/invitations/verify/:token
 router.get('/verify/:token', async (req, res) => {
@@ -81,6 +82,12 @@ router.post('/accept/:token', optionalAuth, async (req, res) => {
       await transitionCase(caseDoc, 'submissions_open', req.user?._id, 'Case opened for bilateral evidence submissions.');
     }
 
+    broadcast('CASE_UPDATED', {
+      case: caseDoc,
+      invitation,
+      message: `Respondent accepted invitation for case "${caseDoc.title}".`
+    });
+
     res.json({
       message: 'Invitation accepted. Submissions are now open for this dispute.',
       case: caseDoc,
@@ -112,6 +119,12 @@ router.post('/decline/:token', async (req, res) => {
     if (caseDoc.status === 'invited') {
       await transitionCase(caseDoc, 'declined', null, `Respondent declined invitation: ${reason || 'No reason provided'}`);
     }
+
+    broadcast('CASE_UPDATED', {
+      case: caseDoc,
+      invitation,
+      message: `Respondent declined invitation for case "${caseDoc.title}".`
+    });
 
     res.json({
       message: 'Invitation declined.',
@@ -209,6 +222,12 @@ router.post('/:token/submit-response', optionalAuth, upload.array('evidenceFiles
         'Both Claimant and Respondent submissions registered. Ready for AI evaluation.'
       );
     }
+
+    broadcast('CASE_UPDATED', {
+      case: caseDoc,
+      submission,
+      message: `Respondent submitted defense for case "${caseDoc.title}". Status: ${caseDoc.status}`
+    });
 
     res.json({
       message: 'Respondent statement and evidence submitted successfully.',

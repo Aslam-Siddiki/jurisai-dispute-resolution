@@ -7,29 +7,51 @@ import {
 } from 'lucide-react'
 
 import { PYTHON_API_BASE as API_BASE } from '../config/api'
+import { useAuth } from '../context/AuthContext'
+
+import { useRealtimeEvents } from '../context/useRealtimeEvents'
+import { Activity, Bell, X } from 'lucide-react'
 
 export default function DisputeListPage() {
+  const { user, isAdmin } = useAuth()
   const [disputes, setDisputes] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
 
-  const fetchDisputes = async () => {
+  const fetchDisputes = async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const res = await axios.get(`${API_BASE}/disputes`)
-      setDisputes(res.data)
+      let list = res.data
+
+      // Respondents can only see disputes where they are Party B
+      if (user?.role === 'respondent') {
+        const userEmail = user.email?.toLowerCase()
+        list = list.filter(d =>
+          d.party_b_email?.toLowerCase() === userEmail ||
+          d.party_b_name?.toLowerCase() === user.name?.toLowerCase()
+        )
+      }
+
+      setDisputes(list)
     } catch (err) {
       console.error(err)
-      setError('Failed to fetch disputes list.')
+      if (!isBackground) setError('Failed to fetch disputes list.')
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchDisputes()
-  }, [])
+    fetchDisputes(false)
+  }, [user])
+
+  // Real-time synchronization hook
+  const { isConnected, lastNotification, dismissNotification } = useRealtimeEvents(() => {
+    fetchDisputes(true)
+  })
 
   const filtered = disputes.filter(d =>
     d.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -68,17 +90,92 @@ export default function DisputeListPage() {
       <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
         <div>
           <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Folders size={28} color="#60a5fa" /> Civil Disputes Directory
+            <Folders size={28} color="#60a5fa" />
+            {user?.role === 'respondent' ? 'My Assigned Cases' : 'Civil Disputes Directory'}
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginTop: '0.25rem' }}>
-            View, track, and examine AI recommendations for all registered and mediated cases
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span>
+              {user?.role === 'respondent'
+                ? 'Cases where you have been invited as the respondent (Party B)'
+                : 'View, track, and examine AI recommendations for all registered and mediated cases'}
+            </span>
+            <span
+              title={isConnected ? 'Live real-time stream active' : 'Connecting to live events stream...'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.72rem',
+                padding: '0.15rem 0.55rem',
+                borderRadius: '1rem',
+                background: isConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                color: isConnected ? '#34d399' : '#fbbf24',
+                border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`
+              }}
+            >
+              <span style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: isConnected ? '#10b981' : '#f59e0b',
+                boxShadow: isConnected ? '0 0 8px #10b981' : 'none',
+                display: 'inline-block'
+              }} />
+              {isConnected ? 'Real-Time Live' : 'Syncing...'}
+            </span>
           </p>
         </div>
 
-        <Link to="/disputes/new" className="btn btn-primary">
-          <FilePlus size={16} /> Register New Case &amp; Invite
-        </Link>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button
+            onClick={() => fetchDisputes(false)}
+            className="btn btn-ghost btn-sm"
+            title="Refresh disputes"
+          >
+            Refresh
+          </button>
+          {user?.role !== 'respondent' && (
+            <Link to="/disputes/new" className="btn btn-primary">
+              <FilePlus size={16} /> Register New Case &amp; Invite
+            </Link>
+          )}
+        </div>
       </div>
+
+      {/* Live Event Notification Banner */}
+      {lastNotification && (
+        <div className="alert alert-info fade-up" style={{
+          marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.1))',
+          borderColor: 'rgba(99,179,237,0.35)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <Bell size={18} style={{ color: 'var(--accent-cyan)' }} />
+            <div>
+              <strong style={{ color: '#fff', fontSize: '0.88rem' }}>Live Dispute Update: </strong>
+              <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{lastNotification.message}</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                ({lastNotification.timestamp.toLocaleTimeString()})
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={dismissNotification}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              padding: '0.2rem'
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Search Input Bar */}
       <div className="card card-body mb-3" style={{ padding: '0.85rem 1.25rem' }}>

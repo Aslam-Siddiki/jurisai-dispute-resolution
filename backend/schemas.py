@@ -75,7 +75,9 @@ class DisputeListItem(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     party_a_name: Optional[str] = None
+    party_a_email: Optional[str] = None
     party_b_name: Optional[str] = None
+    party_b_email: Optional[str] = None
 
     class Config:
         from_attributes = True
