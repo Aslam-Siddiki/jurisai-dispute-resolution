@@ -63,6 +63,7 @@ FRONTEND_URL=https://<your-frontend>.vercel.app
 ```env
 PORT=8000
 FRONTEND_URL=https://<your-frontend>.vercel.app
+NODE_BACKEND_URL=https://<your-node-service>.onrender.com
 # Optional SMTP credentials (if you want direct background email sending):
 # SMTP_HOST=smtp.gmail.com
 # SMTP_PORT=587
