@@ -37,45 +37,82 @@ export default function UserDashboardPage() {
 
   const fetchCases = async (isBackground = false) => {
     if (!isBackground) setLoading(true)
-    if (isRespondent) {
-      // Respondents: fetch from Python disputes API and filter by their email
-      try {
-        const r = await axios.get(`${PYTHON_API}/disputes`)
-        const userEmail = user?.email?.toLowerCase()
-        const mine = r.data.filter(d =>
-          d.party_b_email?.toLowerCase() === userEmail
-        )
-        const normalised = mine.map(d => ({
-          _id: d.id,
-          title: d.title,
-          status: d.status,
-          disputeType: d.category || 'Civil Dispute',
-          respondentName: d.party_a_name || 'Claimant',
-          createdAt: d.created_at,
-          _pythonDispute: true
-        }))
-        setCases(normalised)
-        setError('')
-      } catch {
-        if (!isBackground) setError('Failed to load your assigned cases.')
-      } finally {
-        if (!isBackground) setLoading(false)
+    const userEmail = user?.email?.toLowerCase()?.trim()
+    const userName = user?.name?.toLowerCase()?.trim()
+
+    try {
+      // Fetch cases from both APIs concurrently for complete synchronization
+      const [nodeRes, pythonRes] = await Promise.allSettled([
+        axios.get(`${API}/cases`),
+        axios.get(`${PYTHON_API}/disputes`)
+      ])
+
+      const nodeCases = nodeRes.status === 'fulfilled' ? nodeRes.value.data || [] : []
+      const pythonCases = pythonRes.status === 'fulfilled' ? pythonRes.value.data || [] : []
+
+      // 1. Filter Node.js Cases
+      const matchingNodeCases = nodeCases.filter(c => {
+        const cEmail = c.claimantEmail?.toLowerCase()?.trim()
+        const rEmail = c.respondentEmail?.toLowerCase()?.trim()
+        const cName = c.claimantName?.toLowerCase()?.trim()
+        const rName = c.respondentName?.toLowerCase()?.trim()
+        const cUserId = c.claimant?._id || c.claimant
+        const rUserId = c.respondent?._id || c.respondent
+
+        if (isRespondent) {
+          return (rEmail && rEmail === userEmail) || (rName && rName === userName) || (rUserId && rUserId === user?._id)
+        } else {
+          return (cEmail && cEmail === userEmail) || (cName && cName === userName) || (cUserId && cUserId === user?._id)
+        }
+      }).map(c => ({
+        _id: c._id,
+        title: c.title,
+        status: c.status,
+        disputeType: c.disputeType || 'Civil Dispute',
+        respondentName: isRespondent ? (c.claimantName || 'Claimant') : (c.respondentName || 'Respondent'),
+        createdAt: c.createdAt,
+        _pythonDispute: false
+      }))
+
+      // 2. Filter Python Disputes
+      const matchingPythonCases = pythonCases.filter(d => {
+        const aEmail = d.party_a_email?.toLowerCase()?.trim()
+        const bEmail = d.party_b_email?.toLowerCase()?.trim()
+        const aName = d.party_a_name?.toLowerCase()?.trim()
+        const bName = d.party_b_name?.toLowerCase()?.trim()
+
+        if (isRespondent) {
+          return (bEmail && bEmail === userEmail) || (bName && bName === userName)
+        } else {
+          return (aEmail && aEmail === userEmail) || (aName && aName === userName)
+        }
+      }).map(d => ({
+        _id: d.id,
+        title: d.title,
+        status: d.status,
+        disputeType: d.category || 'Civil Dispute',
+        respondentName: isRespondent ? (d.party_a_name || 'Claimant') : (d.party_b_name || 'Respondent'),
+        createdAt: d.created_at,
+        _pythonDispute: true
+      }))
+
+      // Deduplicate by title or id if synchronized between databases
+      const combined = [...matchingNodeCases]
+      const titles = new Set(combined.map(c => c.title.toLowerCase().trim()))
+
+      for (const pyCase of matchingPythonCases) {
+        if (!titles.has(pyCase.title.toLowerCase().trim())) {
+          combined.push(pyCase)
+          titles.add(pyCase.title.toLowerCase().trim())
+        }
       }
-    } else {
-      // Claimants: fetch from Node.js cases API
-      try {
-        const r = await axios.get(`${API}/cases`)
-        const mine = r.data.filter(c =>
-          c.claimantEmail?.toLowerCase() === user?.email?.toLowerCase() ||
-          c.claimant === user?._id || c.claimant?._id === user?._id
-        )
-        setCases(mine)
-        setError('')
-      } catch {
-        if (!isBackground) setError('Failed to load your cases.')
-      } finally {
-        if (!isBackground) setLoading(false)
-      }
+
+      setCases(combined)
+      setError('')
+    } catch {
+      if (!isBackground) setError('Failed to load your cases.')
+    } finally {
+      if (!isBackground) setLoading(false)
     }
   }
 

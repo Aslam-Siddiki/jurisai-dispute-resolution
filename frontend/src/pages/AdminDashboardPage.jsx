@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import { NODE_API_BASE as API } from '../config/api'
+import { NODE_API_BASE as API, PYTHON_API_BASE as PYTHON_API } from '../config/api'
 
 const STATUS_STYLES = {
   draft:             { cls: 'badge-muted',   label: 'Draft' },
@@ -44,12 +44,43 @@ export default function AdminDashboardPage() {
     if (!isBackground) setLoading(true)
     setError('')
     try {
-      const [casesRes, usersRes] = await Promise.all([
+      const [casesRes, pythonRes, usersRes] = await Promise.allSettled([
         axios.get(`${API}/cases`),
+        axios.get(`${PYTHON_API}/disputes`),
         axios.get(`${API}/auth/users`),
       ])
-      setCases(casesRes.data)
-      setUsers(usersRes.data?.users || [])
+
+      const nodeCases = casesRes.status === 'fulfilled' ? casesRes.value.data || [] : []
+      const pyCases = pythonRes.status === 'fulfilled' ? pythonRes.value.data || [] : []
+      const loadedUsers = usersRes.status === 'fulfilled' ? usersRes.value.data?.users || [] : []
+
+      // Normalize Python cases for admin table
+      const normalizedPyCases = pyCases.map(d => ({
+        _id: d.id,
+        title: d.title,
+        status: d.status,
+        disputeType: d.category || 'Civil Dispute',
+        claimantName: d.party_a_name || 'Claimant',
+        claimantEmail: d.party_a_email || '—',
+        respondentName: d.party_b_name || 'Respondent',
+        respondentEmail: d.party_b_email || '—',
+        createdAt: d.created_at,
+        _pythonDispute: true
+      }))
+
+      // Combine and deduplicate
+      const combined = [...nodeCases]
+      const titles = new Set(combined.map(c => c.title?.toLowerCase()?.trim()))
+
+      for (const p of normalizedPyCases) {
+        if (!titles.has(p.title?.toLowerCase()?.trim())) {
+          combined.push(p)
+          titles.add(p.title?.toLowerCase()?.trim())
+        }
+      }
+
+      setCases(combined)
+      setUsers(loadedUsers)
     } catch (err) {
       if (!isBackground) {
         setError('Failed to load admin data: ' + (err.response?.data?.message || err.message))
