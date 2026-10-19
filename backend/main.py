@@ -25,11 +25,11 @@ frontend_origin = os.getenv("FRONTEND_URL")
 if frontend_origin and frontend_origin != "*":
     origins.append(frontend_origin.rstrip("/"))
 
+# In production, allow all origins or dynamically reflect origin so cross-origin requests never fail preflight
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if not frontend_origin or frontend_origin == "*" else origins,
-    allow_origin_regex=r"^https:\/\/.*(\.vercel\.app|\.onrender\.com)$",
-    allow_credentials=False if (not frontend_origin or frontend_origin == "*") else True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
