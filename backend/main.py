@@ -23,13 +23,13 @@ origins = [
 ]
 frontend_origin = os.getenv("FRONTEND_URL")
 if frontend_origin and frontend_origin != "*":
-    origins.append(frontend_origin)
+    origins.append(frontend_origin.rstrip("/"))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
-    allow_credentials=True,
+    allow_origins=["*"] if not frontend_origin or frontend_origin == "*" else origins,
+    allow_origin_regex=r"^https:\/\/.*(\.vercel\.app|\.onrender\.com)$",
+    allow_credentials=False if (not frontend_origin or frontend_origin == "*") else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
