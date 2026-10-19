@@ -11,18 +11,22 @@ import { Link } from 'react-router-dom'
 import { NODE_API_BASE as API, PYTHON_API_BASE as PYTHON_API } from '../config/api'
 
 const STATUS_STYLES = {
-  draft:             { cls: 'badge-muted',   label: 'Draft' },
-  invited:           { cls: 'badge-blue',    label: 'Invited' },
-  accepted:          { cls: 'badge-cyan',    label: 'Accepted' },
-  submissions_open:  { cls: 'badge-amber',   label: 'Open' },
-  submissions_closed:{ cls: 'badge-violet',  label: 'Closed' },
-  ai_evaluation:     { cls: 'badge-violet',  label: 'AI Analysis' },
-  decision_issued:   { cls: 'badge-blue',    label: 'Decision Issued' },
-  settled_accepted:  { cls: 'badge-green',   label: '✓ Settled' },
-  appealed_mediator: { cls: 'badge-red',     label: 'Appealed' },
-  solved:            { cls: 'badge-green',   label: '✓ Solved' },
-  declined:          { cls: 'badge-red',     label: 'Declined' },
-  expired:           { cls: 'badge-muted',   label: 'Expired' },
+  draft:              { cls: 'badge-muted',   label: 'Draft' },
+  pending:            { cls: 'badge-amber',   label: 'Pending' },
+  submitted:          { cls: 'badge-blue',    label: 'Submitted' },
+  invited:            { cls: 'badge-blue',    label: 'Invited' },
+  accepted:           { cls: 'badge-cyan',    label: 'Accepted' },
+  submissions_open:   { cls: 'badge-amber',   label: 'Open' },
+  submissions_closed: { cls: 'badge-violet',  label: 'Closed' },
+  ai_evaluation:      { cls: 'badge-violet',  label: 'AI Analysis' },
+  analyzing:          { cls: 'badge-violet',  label: 'AI Analysis' },
+  decision_issued:    { cls: 'badge-blue',    label: 'Decision Issued' },
+  complete:           { cls: 'badge-green',   label: 'Evaluated' },
+  settled_accepted:   { cls: 'badge-green',   label: '✓ Settled' },
+  appealed_mediator:  { cls: 'badge-red',     label: 'Appealed' },
+  solved:             { cls: 'badge-green',   label: '✓ Solved' },
+  declined:           { cls: 'badge-red',     label: 'Declined' },
+  expired:            { cls: 'badge-muted',   label: 'Expired' },
 }
 
 import { useRealtimeEvents } from '../context/useRealtimeEvents'
