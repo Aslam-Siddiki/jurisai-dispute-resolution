@@ -107,6 +107,8 @@ class InviteInfoResponse(BaseModel):
 class RespondRequest(BaseModel):
     party: str  # 'A' or 'B'
     response: str  # 'accept' or 'reject'
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
 
 class AnalysisResultResponse(BaseModel):
     id: str

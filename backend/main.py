@@ -15,10 +15,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for frontend Vite development server
+# Enable CORS for frontend and API clients
+frontend_origin = os.getenv("FRONTEND_URL", "*")
+origins = ["*"] if frontend_origin == "*" else [frontend_origin, "http://localhost:5173", "http://127.0.0.1:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for local development (http://localhost:5173, etc.)
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

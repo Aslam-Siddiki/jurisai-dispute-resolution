@@ -553,12 +553,32 @@ def respond_to_recommendation(dispute_id: str, req: RespondRequest, db: Session 
     party_role = req.party.upper()
     response_val = req.response.lower()
 
+    if party_role not in ["A", "B"]:
+        raise HTTPException(status_code=400, detail="Party must be 'A' or 'B'")
+
+    # Security verification: Ensure the responding user actually represents this party
+    if req.user_email or req.user_name:
+        req_email = (req.user_email or "").strip().lower()
+        req_name = (req.user_name or "").strip().lower()
+        party_obj = next((p for p in dispute.parties if p.role == party_role), None)
+
+        if party_obj:
+            p_email = (party_obj.email or "").strip().lower()
+            p_name = (party_obj.name or "").strip().lower()
+            email_match = req_email and p_email and (req_email == p_email)
+            name_match = req_name and p_name and (req_name == p_name)
+
+            if not (email_match or name_match):
+                other_role = "B" if party_role == "A" else "A"
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Unauthorized: You cannot submit a response on behalf of Party {party_role}. You are only permitted to respond for your own party role."
+                )
+
     if party_role == "A":
         analysis.party_a_response = response_val
     elif party_role == "B":
         analysis.party_b_response = response_val
-    else:
-        raise HTTPException(status_code=400, detail="Party must be 'A' or 'B'")
 
     if analysis.party_a_response == "accept" and analysis.party_b_response == "accept":
         dispute.status = "settled"

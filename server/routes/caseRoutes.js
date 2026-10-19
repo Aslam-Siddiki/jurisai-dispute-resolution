@@ -177,6 +177,47 @@ router.post('/', optionalAuth, upload.array('evidenceFiles', 5), async (req, res
   }
 });
 
+// GET /api/cases/mine - Authenticated: return only this user's cases (as claimant or respondent)
+router.get('/mine', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const userEmail = req.user.email?.toLowerCase().trim();
+    const userName = req.user.name?.toLowerCase().trim();
+    const userRole = req.user.role;
+
+    let query;
+    if (userRole === 'admin') {
+      // Admins see all cases
+      query = {};
+    } else {
+      query = {
+        $or: [
+          { claimant: req.user._id },
+          { respondent: req.user._id },
+          ...(userEmail ? [
+            { claimantEmail: new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            { respondentEmail: new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          ] : []),
+          ...(userName ? [
+            { claimantName: new RegExp(`^${userName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            { respondentName: new RegExp(`^${userName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+          ] : [])
+        ]
+      };
+    }
+
+    const cases = await Case.find(query)
+      .sort({ createdAt: -1 })
+      .populate('activeInvitation', 'token status expiresAt')
+      .lean();
+
+    res.json(cases);
+  } catch (err) {
+    console.error('List my cases error:', err);
+    res.status(500).json({ message: 'Failed to retrieve your cases.' });
+  }
+});
+
 // GET /api/cases/:id - Case details with submissions, invitation, decision
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
@@ -301,6 +342,25 @@ router.post('/:id/decision/respond', optionalAuth, async (req, res) => {
     const caseDoc = await Case.findById(req.params.id);
     if (!caseDoc) {
       return res.status(404).json({ message: 'Case not found.' });
+    }
+
+    // Role verification: ensure user only acts on their own behalf
+    if (req.user) {
+      const userEmail = req.user.email?.toLowerCase().trim();
+      const userName = req.user.name?.toLowerCase().trim();
+      const isClaimantMatch = (caseDoc.claimantEmail && caseDoc.claimantEmail.toLowerCase() === userEmail) ||
+                              (caseDoc.claimantName && caseDoc.claimantName.toLowerCase() === userName) ||
+                              (caseDoc.claimant && caseDoc.claimant.toString() === req.user._id.toString());
+      const isRespondentMatch = (caseDoc.respondentEmail && caseDoc.respondentEmail.toLowerCase() === userEmail) ||
+                                (caseDoc.respondentName && caseDoc.respondentName.toLowerCase() === userName) ||
+                                (caseDoc.respondent && caseDoc.respondent.toString() === req.user._id.toString());
+
+      if (party === 'claimant' && !isClaimantMatch && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Unauthorized. You cannot accept or reject this settlement on behalf of the Claimant.' });
+      }
+      if (party === 'respondent' && !isRespondentMatch && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Unauthorized. You cannot accept or reject this settlement on behalf of the Respondent.' });
+      }
     }
 
     const decision = await Decision.findOne({ caseId: caseDoc._id });

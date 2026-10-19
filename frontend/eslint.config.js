@@ -4,6 +4,9 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import reactRefreshPlugin from 'eslint-plugin-react-refresh';
 
 export default [
+  {
+    ignores: ['dist/**', 'node_modules/**'],
+  },
   js.configs.recommended,
   {
     files: ['**/*.{js,jsx}'],
@@ -29,6 +32,13 @@ export default [
         URL: 'readonly',
         process: 'readonly',
         alert: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        EventSource: 'readonly',
+        AbortController: 'readonly',
+        Blob: 'readonly',
+        btoa: 'readonly',
+        atob: 'readonly',
       },
     },
     plugins: {

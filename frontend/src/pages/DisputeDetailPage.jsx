@@ -5,16 +5,18 @@ import ReactMarkdown from 'react-markdown'
 import {
   Sparkles, Layers, Cpu, Scale, ShieldAlert, BookOpen, FileCheck, CheckCircle2,
   XCircle, Clock, AlertTriangle, ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown,
-  Mail, Copy, Check, ExternalLink, Send, UserCheck
+  Mail, Copy, Check, ExternalLink, Send, UserCheck, Lock
 } from 'lucide-react'
 
 import { PYTHON_API_BASE as API_BASE } from '../config/api'
+import { useAuth } from '../context/AuthContext'
 
 import { useRealtimeEvents } from '../context/useRealtimeEvents'
 import { Activity, Bell, X } from 'lucide-react'
 
 export default function DisputeDetailPage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const [dispute, setDispute] = useState(null)
   const [analysisData, setAnalysisData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -89,10 +91,41 @@ export default function DisputeDetailPage() {
     }
   }
 
-  // Respond to recommendation (Accept/Reject)
+  // Determine which party the logged-in user represents in this Python dispute
+  // Returns 'A', 'B', or null if not a party (e.g. admin/observer)
+  const getMyPartyRole = () => {
+    if (!dispute || !user) return null
+    const partyA = dispute.parties?.find(p => p.role === 'A')
+    const partyB = dispute.parties?.find(p => p.role === 'B')
+    const myEmail = user.email?.toLowerCase().trim()
+    const myName = user.name?.toLowerCase().trim()
+
+    const aEmail = partyA?.email?.toLowerCase().trim()
+    const aName = partyA?.name?.toLowerCase().trim()
+    const bEmail = partyB?.email?.toLowerCase().trim()
+    const bName = partyB?.name?.toLowerCase().trim()
+
+    if (user.role === 'admin') return 'admin'  // Admin can see all but shouldn't respond
+
+    if ((myEmail && aEmail && myEmail === aEmail) || (myName && aName && myName === aName)) return 'A'
+    if ((myEmail && bEmail && myEmail === bEmail) || (myName && bName && myName === bName)) return 'B'
+    return null
+  }
+
+  // Respond to recommendation (Accept/Reject) — restricted to own party only
   const handlePartyResponse = async (party, response) => {
+    const myRole = getMyPartyRole()
+    if (myRole !== 'admin' && myRole !== party) {
+      alert(`You can only respond on behalf of your own party (Party ${myRole || '?'}). You cannot accept or reject for Party ${party}.`)
+      return
+    }
     try {
-      await axios.post(`${API_BASE}/disputes/${id}/respond`, { party, response })
+      await axios.post(`${API_BASE}/disputes/${id}/respond`, {
+        party,
+        response,
+        user_email: user?.email || '',
+        user_name: user?.name || ''
+      })
       fetchDetails()
     } catch (err) {
       console.error(err)
@@ -498,47 +531,58 @@ export default function DisputeDetailPage() {
               <div className="divider" />
               <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem' }}>Party Acceptance & Non-Binding Resolution</h3>
 
-              <div className="grid-2">
-                {/* Party A Decision Box */}
-                <div style={{ background: 'rgba(59,130,246,0.06)', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid rgba(59,130,246,0.2)' }}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span style={{ fontWeight: 600, color: '#60a5fa' }}>Party A Response ({partyA?.name}):</span>
-                    {analysisData.party_a_response === 'accept' && <span className="badge badge-green"><ThumbsUp size={12} /> Accepted</span>}
-                    {analysisData.party_a_response === 'reject' && <span className="badge badge-red"><ThumbsDown size={12} /> Rejected</span>}
-                    {!analysisData.party_a_response && <span className="badge badge-amber">Awaiting Decision</span>}
-                  </div>
-                  {!analysisData.party_a_response && (
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                      <button onClick={() => handlePartyResponse('A', 'accept')} className="btn btn-sm btn-primary">
-                        <ThumbsUp size={14} /> Accept Proposal
-                      </button>
-                      <button onClick={() => handlePartyResponse('A', 'reject')} className="btn btn-sm btn-danger">
-                        <ThumbsDown size={14} /> Reject
-                      </button>
-                    </div>
-                  )}
-                </div>
+              {(() => {
+                const myPartyRole = getMyPartyRole()
+                const isAdmin = myPartyRole === 'admin'
 
-                {/* Party B Decision Box */}
-                <div style={{ background: 'rgba(139,92,246,0.06)', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid rgba(139,92,246,0.2)' }}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span style={{ fontWeight: 600, color: '#a78bfa' }}>Party B Response ({partyB?.name}):</span>
-                    {analysisData.party_b_response === 'accept' && <span className="badge badge-green"><ThumbsUp size={12} /> Accepted</span>}
-                    {analysisData.party_b_response === 'reject' && <span className="badge badge-red"><ThumbsDown size={12} /> Rejected</span>}
-                    {!analysisData.party_b_response && <span className="badge badge-amber">Awaiting Decision</span>}
-                  </div>
-                  {!analysisData.party_b_response && (
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                      <button onClick={() => handlePartyResponse('B', 'accept')} className="btn btn-sm btn-primary">
-                        <ThumbsUp size={14} /> Accept Proposal
-                      </button>
-                      <button onClick={() => handlePartyResponse('B', 'reject')} className="btn btn-sm btn-danger">
-                        <ThumbsDown size={14} /> Reject
-                      </button>
+                const renderPartyBox = (role, name, responseVal, accentColor, bgColor, borderColor) => {
+                  const isMyParty = isAdmin || myPartyRole === role
+                  const hasResponded = !!responseVal
+
+                  return (
+                    <div style={{ background: bgColor, padding: '1.25rem', borderRadius: '0.75rem', border: `1px solid ${borderColor}` }}>
+                      <div className="flex justify-between items-center mb-1" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <span style={{ fontWeight: 600, color: accentColor }}>Party {role} Response ({name}):</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {responseVal === 'accept' && <span className="badge badge-green"><ThumbsUp size={12} /> Accepted</span>}
+                          {responseVal === 'reject' && <span className="badge badge-red"><ThumbsDown size={12} /> Rejected</span>}
+                          {!responseVal && isMyParty && <span className="badge badge-amber">Awaiting Your Decision</span>}
+                          {!responseVal && !isMyParty && (
+                            <span className="badge badge-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Lock size={11} /> Awaiting Their Response
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {!hasResponded && isMyParty && (
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                          <button onClick={() => handlePartyResponse(role, 'accept')} className="btn btn-sm btn-primary">
+                            <ThumbsUp size={14} /> Accept Proposal
+                          </button>
+                          <button onClick={() => handlePartyResponse(role, 'reject')} className="btn btn-sm btn-danger">
+                            <ThumbsDown size={14} /> Reject
+                          </button>
+                        </div>
+                      )}
+
+                      {!hasResponded && !isMyParty && (
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Lock size={13} />
+                          Only Party {role} ({name}) can submit a response for their side.
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  )
+                }
+
+                return (
+                  <div className="grid-2">
+                    {renderPartyBox('A', partyA?.name, analysisData.party_a_response, '#60a5fa', 'rgba(59,130,246,0.06)', 'rgba(59,130,246,0.2)')}
+                    {renderPartyBox('B', partyB?.name, analysisData.party_b_response, '#a78bfa', 'rgba(139,92,246,0.06)', 'rgba(139,92,246,0.2)')}
+                  </div>
+                )
+              })()}
             </div>
           )}
 

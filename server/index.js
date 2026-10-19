@@ -14,8 +14,9 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/jurisai';
 
 // Middleware
+const allowedOrigin = process.env.FRONTEND_URL || '*';
 app.use(cors({
-  origin: '*',
+  origin: allowedOrigin === '*' ? '*' : [allowedOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'],
   credentials: true
 }));
 app.use(express.json({ limit: '20mb' }));

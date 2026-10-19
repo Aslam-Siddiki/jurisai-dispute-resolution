@@ -41,40 +41,29 @@ export default function UserDashboardPage() {
     const userName = user?.name?.toLowerCase()?.trim()
 
     try {
-      // Fetch cases from both APIs concurrently for complete synchronization
+      // Fetch user-specific Node.js cases via authenticated /mine endpoint
+      // and Python disputes in parallel
       const [nodeRes, pythonRes] = await Promise.allSettled([
-        axios.get(`${API}/cases`),
+        axios.get(`${API}/cases/mine`),   // Auth-filtered: returns only this user's cases
         axios.get(`${PYTHON_API}/disputes`)
       ])
 
+      // Node.js cases — already filtered server-side by user ID / email / name
       const nodeCases = nodeRes.status === 'fulfilled' ? nodeRes.value.data || [] : []
       const pythonCases = pythonRes.status === 'fulfilled' ? pythonRes.value.data || [] : []
 
-      // 1. Filter Node.js Cases
-      const matchingNodeCases = nodeCases.filter(c => {
-        const cEmail = c.claimantEmail?.toLowerCase()?.trim()
-        const rEmail = c.respondentEmail?.toLowerCase()?.trim()
-        const cName = c.claimantName?.toLowerCase()?.trim()
-        const rName = c.respondentName?.toLowerCase()?.trim()
-        const cUserId = c.claimant?._id || c.claimant
-        const rUserId = c.respondent?._id || c.respondent
-
-        if (isRespondent) {
-          return (rEmail && rEmail === userEmail) || (rName && rName === userName) || (rUserId && rUserId === user?._id)
-        } else {
-          return (cEmail && cEmail === userEmail) || (cName && cName === userName) || (cUserId && cUserId === user?._id)
-        }
-      }).map(c => ({
+      const matchingNodeCases = nodeCases.map(c => ({
         _id: c._id,
         title: c.title,
         status: c.status,
         disputeType: c.disputeType || 'Civil Dispute',
+        // Show the "other side" name relative to the logged-in user
         respondentName: isRespondent ? (c.claimantName || 'Claimant') : (c.respondentName || 'Respondent'),
         createdAt: c.createdAt,
         _pythonDispute: false
       }))
 
-      // 2. Filter Python Disputes
+      // Python disputes — filter client-side by party email/name (no auth on Python side)
       const matchingPythonCases = pythonCases.filter(d => {
         const aEmail = d.party_a_email?.toLowerCase()?.trim()
         const bEmail = d.party_b_email?.toLowerCase()?.trim()
@@ -96,7 +85,7 @@ export default function UserDashboardPage() {
         _pythonDispute: true
       }))
 
-      // Deduplicate by title or id if synchronized between databases
+      // Deduplicate by title (cases synced between databases may appear in both)
       const combined = [...matchingNodeCases]
       const titles = new Set(combined.map(c => c.title.toLowerCase().trim()))
 
