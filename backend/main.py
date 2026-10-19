@@ -16,12 +16,19 @@ app = FastAPI(
 )
 
 # Enable CORS for frontend and API clients
-frontend_origin = os.getenv("FRONTEND_URL", "*")
-origins = ["*"] if frontend_origin == "*" else [frontend_origin, "http://localhost:5173", "http://127.0.0.1:5173"]
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
+frontend_origin = os.getenv("FRONTEND_URL")
+if frontend_origin and frontend_origin != "*":
+    origins.append(frontend_origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

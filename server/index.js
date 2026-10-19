@@ -14,9 +14,17 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/jurisai';
 
 // Middleware
-const allowedOrigin = process.env.FRONTEND_URL || '*';
+const allowedOrigin = process.env.FRONTEND_URL;
 app.use(cors({
-  origin: allowedOrigin === '*' ? '*' : [allowedOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (!allowedOrigin || allowedOrigin === '*') return callback(null, true);
+    if (origin.endsWith('.vercel.app') || origin === allowedOrigin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    return callback(null, true); // fallback allow
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '20mb' }));
