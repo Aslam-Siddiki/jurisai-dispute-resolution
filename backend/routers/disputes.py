@@ -39,10 +39,19 @@ def extract_text_from_file(saved_path: str, ext: str, file_bytes: bytes) -> str:
     extracted_text = ""
     try:
         if ext == ".pdf":
-            import fitz
-            doc = fitz.open(saved_path)
-            for page in doc:
-                extracted_text += page.get_text() + "\n"
+            try:
+                from pypdf import PdfReader
+                import io
+                reader = PdfReader(io.BytesIO(file_bytes))
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        extracted_text += text + "\n"
+            except Exception:
+                import fitz
+                doc = fitz.open(saved_path)
+                for page in doc:
+                    extracted_text += page.get_text() + "\n"
         elif ext in [".txt", ".csv", ".json", ".md"]:
             extracted_text = file_bytes.decode("utf-8", errors="ignore")
     except Exception as e:
