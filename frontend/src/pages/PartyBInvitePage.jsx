@@ -4,10 +4,11 @@ import axios from 'axios'
 import {
   Scale, UserCheck, ShieldAlert, Sparkles, CheckCircle2,
   AlertCircle, Upload, ArrowRight, FileText, Clock, Mail,
-  Check, FileCheck, Layers
+  Check, FileCheck, Layers, LogIn, UserPlus, LogOut
 } from 'lucide-react'
 
 import { PYTHON_API_BASE as API_BASE } from '../config/api'
+import { useAuth } from '../context/AuthContext'
 
 export default function PartyBInvitePage() {
   const { token } = useParams()
@@ -18,12 +19,15 @@ export default function PartyBInvitePage() {
   const [error, setError] = useState(null)
   const [disputeData, setDisputeData] = useState(null)
 
+  const { user, logout } = useAuth()
+
   // Form state
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [statement, setStatement] = useState('')
   const [file, setFile] = useState(null)
   const [submitted, setSubmitted] = useState(false)
+  const [loggedOutNotice, setLoggedOutNotice] = useState(false)
 
   // Fetch dispute information using invite token
   const fetchInviteInfo = async () => {
@@ -32,6 +36,9 @@ export default function PartyBInvitePage() {
       setError(null)
       const res = await axios.get(`${API_BASE}/disputes/invite/${token}`)
       setDisputeData(res.data)
+      const partyBEmail = res.data.party_b?.email?.toLowerCase().trim()
+      const partyAEmail = res.data.party_a?.email?.toLowerCase().trim()
+
       if (res.data.party_b) {
         setName(res.data.party_b.name || '')
         setEmail(res.data.party_b.email || '')
@@ -40,6 +47,16 @@ export default function PartyBInvitePage() {
         setSubmitted(true)
         if (res.data.party_b?.statement) {
           setStatement(res.data.party_b.statement)
+        }
+      }
+
+      // If an existing session is active for a different user (e.g. Party A claimant or someone else),
+      // log them out automatically so Party B can have a clean session or log in / register freshly.
+      if (user) {
+        const currentUserEmail = user.email?.toLowerCase().trim()
+        if (currentUserEmail && currentUserEmail !== partyBEmail) {
+          logout()
+          setLoggedOutNotice(true)
         }
       }
     } catch (err) {
@@ -55,6 +72,17 @@ export default function PartyBInvitePage() {
       fetchInviteInfo()
     }
   }, [token])
+
+  useEffect(() => {
+    if (user && disputeData) {
+      const partyBEmail = disputeData.party_b?.email?.toLowerCase().trim()
+      const currentUserEmail = user.email?.toLowerCase().trim()
+      if (currentUserEmail && currentUserEmail !== partyBEmail) {
+        logout()
+        setLoggedOutNotice(true)
+      }
+    }
+  }, [user, disputeData])
 
   // Submit response
   const handleSubmitResponse = async (e) => {
@@ -163,6 +191,64 @@ export default function PartyBInvitePage() {
           </div>
         </div>
       </div>
+
+      {loggedOutNotice && (
+        <div className="alert alert-info mb-3 fade-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <CheckCircle2 size={18} color="#60a5fa" />
+            <span style={{ fontSize: '0.9rem' }}>
+              Previous account was automatically logged out. You can now respond below or log in/register with your account.
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <Link to="/login" state={{ from: { pathname: `/invite/${token}` } }} className="btn btn-secondary btn-sm">
+              <LogIn size={14} /> Log In
+            </Link>
+            <Link to="/register" state={{ from: { pathname: `/invite/${token}` } }} className="btn btn-primary btn-sm">
+              <UserPlus size={14} /> Register
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {user && (
+        <div className="card card-body mb-3 fade-up" style={{
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid var(--border)',
+          padding: '0.85rem 1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: '50%',
+              background: 'var(--gradient-primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, fontSize: '0.8rem', color: '#fff'
+            }}>
+              {user.name?.charAt(0)?.toUpperCase()}
+            </div>
+            <div style={{ fontSize: '0.88rem' }}>
+              Signed in as <strong>{user.name}</strong> ({user.email}).
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              onClick={() => { logout(); setLoggedOutNotice(true); }}
+              className="btn btn-ghost btn-sm"
+              style={{ color: '#f87171' }}
+            >
+              <LogOut size={14} /> Log Out &amp; Switch Account
+            </button>
+            <Link to="/register" className="btn btn-ghost btn-sm">
+              <UserPlus size={14} /> Register New Account
+            </Link>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="alert alert-error mb-2">

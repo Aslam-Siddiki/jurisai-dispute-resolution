@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { Scale, User, Mail, Lock, Phone, Briefcase, UserPlus, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -14,11 +14,14 @@ const BASE_ROLES = [
 export default function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const from = location.state?.from?.pathname || '/dashboard'
+  const isFromInvite = Boolean(from.startsWith('/invite/'))
 
   const [hasAdmin, setHasAdmin] = useState(true) // default to true until checked
   const [form, setForm] = useState({
     name: '', email: '', password: '', confirmPassword: '',
-    phone: '', organization: '', role: 'claimant'
+    phone: '', organization: '', role: isFromInvite ? 'respondent' : 'claimant'
   })
 
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function RegisterPage() {
     try {
       const { name, email, password, phone, organization, role } = form
       await register({ name, email, password, phone, organization, role })
-      navigate('/dashboard', { replace: true })
+      navigate(from, { replace: true })
     } catch (err) {
       setError(
         err.response?.data?.message ||
