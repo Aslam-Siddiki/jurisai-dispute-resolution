@@ -8,7 +8,7 @@ import {
   Mail, Copy, Check, ExternalLink, Send, UserCheck, Lock
 } from 'lucide-react'
 
-import { PYTHON_API_BASE as API_BASE } from '../config/api'
+import { PYTHON_API_BASE as API_BASE, NODE_API_BASE as NODE_API } from '../config/api'
 import { useAuth } from '../context/AuthContext'
 
 import { useRealtimeEvents } from '../context/useRealtimeEvents'
@@ -32,23 +32,69 @@ export default function DisputeDetailPage() {
   // Fetch dispute and analysis details
   const fetchDetails = async (isBackground = false) => {
     try {
-      const dispRes = await axios.get(`${API_BASE}/disputes/${id}`)
-      setDispute(dispRes.data)
+      try {
+        const dispRes = await axios.get(`${API_BASE}/disputes/${id}`)
+        setDispute(dispRes.data)
 
-      const anaRes = await axios.get(`${API_BASE}/disputes/${id}/analysis`)
-      if (anaRes.data.analysis) {
-        setAnalysisData(anaRes.data.analysis)
-      }
+        const anaRes = await axios.get(`${API_BASE}/disputes/${id}/analysis`)
+        if (anaRes.data?.analysis) {
+          setAnalysisData(anaRes.data.analysis)
+        }
 
-      if (dispRes.data.status === 'analyzing') {
-        setAnalyzing(true)
-      } else {
-        setAnalyzing(false)
+        if (dispRes.data.status === 'analyzing') {
+          setAnalyzing(true)
+        } else {
+          setAnalyzing(false)
+        }
+      } catch (pythonErr) {
+        // Fallback to Node.js MERN case backend
+        const nodeRes = await axios.get(`${NODE_API}/cases/${id}`)
+        const caseDoc = nodeRes.data.case || nodeRes.data
+        const claimantSub = nodeRes.data.claimantSubmission
+        const respondentSub = nodeRes.data.respondentSubmission
+        const decisionDoc = nodeRes.data.decision
+
+        setDispute({
+          id: caseDoc._id,
+          title: caseDoc.title,
+          description: caseDoc.description,
+          category: caseDoc.disputeType,
+          status: caseDoc.status === 'settled_accepted' ? 'settled' : caseDoc.status,
+          created_at: caseDoc.createdAt,
+          invite_token: caseDoc.activeInvitation?.token || '',
+          parties: [
+            {
+              role: 'A',
+              name: caseDoc.claimantName,
+              email: caseDoc.claimantEmail,
+              statement: claimantSub?.statementText || ''
+            },
+            {
+              role: 'B',
+              name: caseDoc.respondentName,
+              email: caseDoc.respondentEmail,
+              statement: respondentSub?.statementText || ''
+            }
+          ],
+          evidence_files: []
+        })
+
+        if (decisionDoc) {
+          setAnalysisData({
+            dispute_category: decisionDoc.disputeCategory,
+            recommendation: decisionDoc.outcome,
+            explanation: decisionDoc.reasoning,
+            findings: decisionDoc.findings,
+            agreements: decisionDoc.agreements,
+            similar_cases: decisionDoc.legalProvisions,
+            classifier_confidence: decisionDoc.confidence || 0.85
+          })
+        }
       }
     } catch (err) {
       console.error(err)
       if (!isBackground) {
-        setError(err.response?.data?.detail || 'Failed to load dispute details.')
+        setError(err.response?.data?.detail || err.response?.data?.message || 'Failed to load dispute details.')
       }
     } finally {
       if (!isBackground) setLoading(false)

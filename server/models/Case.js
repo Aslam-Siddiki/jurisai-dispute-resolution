@@ -25,16 +25,7 @@ const caseSchema = new mongoose.Schema({
   disputeType: {
     type: String,
     required: true,
-    enum: [
-      'Tenancy & Security Deposit',
-      'Breach of Contract & Freelance',
-      'Employment & Unpaid Wages',
-      'Consumer Goods & E-Commerce',
-      'Business Partnership Dispute',
-      'Property Damage & Repairs',
-      'Personal Loan & Debt Settlement',
-      'General Civil Claim'
-    ],
+    trim: true,
     default: 'General Civil Claim'
   },
   claimAmount: {

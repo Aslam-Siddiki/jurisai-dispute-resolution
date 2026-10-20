@@ -88,6 +88,10 @@ router.post('/', optionalAuth, upload.array('evidenceFiles', 5), async (req, res
       }
     }
 
+    // Resolve Respondent User if already registered
+    const respEmailClean = respondentEmail.toLowerCase().trim();
+    const respondentUser = await User.findOne({ email: respEmailClean });
+
     // 2. Create Case document in 'draft'
     const newCase = new Case({
       title: title.trim(),
@@ -100,8 +104,9 @@ router.post('/', optionalAuth, upload.array('evidenceFiles', 5), async (req, res
       claimant: claimantUser._id,
       claimantName: claimantName.trim(),
       claimantEmail: claimantUser.email,
+      respondent: respondentUser ? respondentUser._id : null,
       respondentName: respondentName.trim(),
-      respondentEmail: respondentEmail.toLowerCase().trim(),
+      respondentEmail: respEmailClean,
       status: 'draft',
       statusHistory: [{
         fromStatus: 'none',

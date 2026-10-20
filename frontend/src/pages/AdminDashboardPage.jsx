@@ -73,13 +73,15 @@ export default function AdminDashboardPage() {
       }))
 
       // Combine and deduplicate
+      const normalizeTitle = (t) => (t || '').toLowerCase().replace(/[\u2013\u2014-]/g, '-').replace(/\s+/g, ' ').trim()
       const combined = [...nodeCases]
-      const titles = new Set(combined.map(c => c.title?.toLowerCase()?.trim()))
+      const titles = new Set(combined.map(c => normalizeTitle(c.title)))
 
       for (const p of normalizedPyCases) {
-        if (!titles.has(p.title?.toLowerCase()?.trim())) {
+        const norm = normalizeTitle(p.title)
+        if (!titles.has(norm)) {
           combined.push(p)
-          titles.add(p.title?.toLowerCase()?.trim())
+          titles.add(norm)
         }
       }
 

@@ -147,11 +147,13 @@ def register_dispute(data: DisputeRegisterRequest, db: Session = Depends(get_db)
 
     # Synchronize case record into Node.js / MongoDB database so it reflects everywhere
     try:
+        # Normalize title and category for clean database storage across engines
+        clean_title = new_dispute.title.replace("\u2014", "-").replace("\u2013", "-").strip()
         requests.post(
             f"{NODE_BACKEND_URL}/api/cases",
             json={
-                "title": new_dispute.title,
-                "disputeType": new_dispute.category or "Civil Dispute",
+                "title": clean_title,
+                "disputeType": new_dispute.category or "General Civil Claim",
                 "description": new_dispute.description or "",
                 "claimantName": data.party_a_name.strip(),
                 "claimantEmail": (data.party_a_email or "").strip(),
@@ -160,7 +162,7 @@ def register_dispute(data: DisputeRegisterRequest, db: Session = Depends(get_db)
                 "respondentEmail": data.party_b_email.strip(),
                 "sendEmail": False
             },
-            timeout=2.0
+            timeout=3.0
         )
     except Exception as sync_err:
         print(f"Warning: Failed to sync dispute to Node backend: {sync_err}")

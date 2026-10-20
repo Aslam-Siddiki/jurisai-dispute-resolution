@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 
 import { PYTHON_API_BASE as API_BASE } from '../config/api'
+import { useAuth } from '../context/AuthContext'
 
 const CATEGORIES = [
   'Tenancy & Security Deposit',
@@ -23,15 +24,16 @@ const CATEGORIES = [
 
 export default function NewDisputePage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   // Form states
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState(CATEGORIES[0])
   const [description, setDescription] = useState('')
 
-  // Party A (Claimant)
-  const [nameA, setNameA] = useState('')
-  const [emailA, setEmailA] = useState('')
+  // Party A (Claimant) — prefill with logged-in user credentials
+  const [nameA, setNameA] = useState(user?.name || '')
+  const [emailA, setEmailA] = useState(user?.email || '')
   const [statementA, setStatementA] = useState('')
   const [fileA, setFileA] = useState(null)
 

@@ -14,15 +14,22 @@ import { Activity, Bell, X } from 'lucide-react'
 
 const STATUS_STYLES = {
   draft:            { cls: 'badge-muted',  label: 'Draft' },
+  pending:          { cls: 'badge-amber',  label: 'Pending' },
+  submitted:        { cls: 'badge-blue',   label: 'Submitted' },
   invited:          { cls: 'badge-blue',   label: 'Invited' },
   accepted:         { cls: 'badge-cyan',   label: 'Accepted' },
   submissions_open: { cls: 'badge-amber',  label: 'Open' },
   submissions_closed:{ cls:'badge-violet', label: 'Closed' },
   ai_evaluation:    { cls: 'badge-violet', label: 'AI Analysis' },
+  analyzing:        { cls: 'badge-violet', label: 'AI Analysis' },
   decision_issued:  { cls: 'badge-blue',   label: 'Decision Issued' },
+  complete:         { cls: 'badge-green',  label: 'Evaluated' },
+  settled:          { cls: 'badge-green',  label: '✓ Settled' },
   settled_accepted: { cls: 'badge-green',  label: '✓ Settled' },
   appealed_mediator:{ cls: 'badge-red',    label: 'Appealed' },
   solved:           { cls: 'badge-green',  label: '✓ Solved' },
+  declined:         { cls: 'badge-red',    label: 'Declined' },
+  expired:          { cls: 'badge-muted',  label: 'Expired' },
 }
 
 export default function UserDashboardPage() {
@@ -85,14 +92,16 @@ export default function UserDashboardPage() {
         _pythonDispute: true
       }))
 
-      // Deduplicate by title (cases synced between databases may appear in both)
+      // Deduplicate by normalized title (cases synced between databases may appear in both)
+      const normalizeTitle = (t) => (t || '').toLowerCase().replace(/[\u2013\u2014-]/g, '-').replace(/\s+/g, ' ').trim()
       const combined = [...matchingNodeCases]
-      const titles = new Set(combined.map(c => c.title.toLowerCase().trim()))
+      const titles = new Set(combined.map(c => normalizeTitle(c.title)))
 
       for (const pyCase of matchingPythonCases) {
-        if (!titles.has(pyCase.title.toLowerCase().trim())) {
+        const norm = normalizeTitle(pyCase.title)
+        if (!titles.has(norm)) {
           combined.push(pyCase)
-          titles.add(pyCase.title.toLowerCase().trim())
+          titles.add(norm)
         }
       }
 
@@ -131,8 +140,8 @@ export default function UserDashboardPage() {
 
   const stats = {
     total:   cases.length,
-    active:  cases.filter(c => !['settled_accepted','solved','appealed_mediator'].includes(c.status)).length,
-    settled: cases.filter(c => ['settled_accepted','solved'].includes(c.status)).length,
+    active:  cases.filter(c => !['settled_accepted','settled','solved','appealed_mediator'].includes(c.status)).length,
+    settled: cases.filter(c => ['settled_accepted','settled','solved'].includes(c.status)).length,
   }
 
   return (
